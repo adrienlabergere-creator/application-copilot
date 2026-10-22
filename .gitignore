@@ -1,0 +1,23 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Docker volumes and local data
+postgres_data/
+n8n_data/
+.n8n/
+*.sqlite
+*.sqlite3
+*.log
+
+# Credential exports must never be committed
+credentials*.json
+**/credentials/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+node_modules/
