@@ -1,0 +1,275 @@
+{
+  "name": "Copilot - Make CV",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "offer",
+              "type": "object"
+            },
+            {
+              "name": "slots",
+              "type": "object"
+            },
+            {
+              "name": "profile",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "38960487-0908-40d8-9b9e-102f8499a3d1",
+      "name": "Make CV input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "13I1uqdM-XQolFnHunW6isVlm4OOK9pY_ifjAL3VUjUI"
+        },
+        "name": "=CV - {{ $('Make CV input').first().json.offer.company }} - {{ $('Make CV input').first().json.offer.job_title }}",
+        "sameFolder": false,
+        "driveId": {
+          "__rl": true,
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive",
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "cachedResultName": "Application Copilot - CVs",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1S1Hstdr4z75r6HglEyAjam5KntH8zXSC",
+          "mode": "list",
+          "value": "1S1Hstdr4z75r6HglEyAjam5KntH8zXSC"
+        },
+        "options": {}
+      },
+      "id": "34160184-adeb-4aef-a4f4-6f68d33ed6f9",
+      "name": "Copy CV template",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "KEUJ8Q15od9rZvKH",
+          "name": "google-drive-dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "options": {}
+      },
+      "id": "e7eb1d48-f5db-47cb-a312-0b1c56e2e2ae",
+      "name": "Read copy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "VEEzybRKTCZujqkI",
+          "name": "google-docs-dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const doc = $input.first().json;\nconst slots = $('Make CV input').first().json.slots;\nconst documentId = $('Copy CV template').first().json.id;\nconst DEL = '§§DEL§§';\n\n\nconst content = (doc.body && doc.body.content) || [];\nconst endOfBody = content.length ? content[content.length - 1].endIndex : 0;\n\n// Header (name and contact line) from the master profile, if one is known\nconst profile = $('Make CV input').first().json.profile || {};\nconst headerRepl = [];\nconst paraText = block => (block.paragraph.elements || []).map(el => (el.textRun ? el.textRun.content : '')).join('').replace(/\\n$/, '').trim();\nif (profile.name || profile.email || profile.phone || profile.linkedin) {\n  const words = String(profile.name || '').trim().split(/\\s+/).filter(Boolean);\n  const last = words.length > 1 ? words.pop() : '';\n  const first = words.join(' ');\n  const cap = w => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w);\n  const plainName = (first + ' ' + last.split('-').map(cap).join('-')).trim();\n  const headerName = last ? first + ' ' + last.toUpperCase() : first.toUpperCase();\n  const contact = [profile.email, profile.phone, profile.linkedin].filter(Boolean).join('  |  ');\n  const doneTexts = new Set();\n  for (const block of content) {\n    if (!block.paragraph) continue;\n    const t = paraText(block);\n    if (!t || doneTexts.has(t)) continue;\n    if (profile.name && /^alex\\s+martin$/i.test(t)) { headerRepl.push([t, /MARTIN/.test(t) ? headerName : plainName]); doneTexts.add(t); }\n    else if (contact && /@example\\.com/i.test(t)) { headerRepl.push([t, contact]); doneTexts.add(t); }\n  }\n}\n\n// 1) Paragraphs to delete: any paragraph holding a placeholder whose value is the marker\nconst toDelete = [];\nconst seen = new Set();\nfor (const block of content) {\n  if (!block.paragraph) continue;\n  const text = (block.paragraph.elements || []).map(el => (el.textRun ? el.textRun.content : '')).join('');\n  const keys = [...text.matchAll(/\\{\\{(\\w+)\\}\\}/g)].map(m => m[1]);\n  keys.forEach(k => seen.add(k));\n  if (keys.some(k => slots[k] === DEL || !(k in slots))) {   // unused or unknown placeholder: remove the paragraph\n    // the last newline of the document can never be deleted\n    toDelete.push({ start: block.startIndex, end: Math.min(block.endIndex, endOfBody - 1) });\n  }\n}\ntoDelete.sort((a, b) => b.start - a.start);   // from the end, so earlier indexes stay valid\n\n// 2) Requests: delete the unused paragraphs first, then replace every other placeholder\nconst requests = toDelete.map(r => ({ deleteContentRange: { range: { startIndex: r.start, endIndex: r.end } } }));\nfor (const [key, value] of Object.entries(slots)) {\n  if (value === DEL) continue;\n  requests.push({ replaceAllText: { containsText: { text: '{{' + key + '}}', matchCase: true }, replaceText: String(value) } });\n}\n\nfor (const [from, to] of headerRepl) requests.push({ replaceAllText: { containsText: { text: from, matchCase: true }, replaceText: to } });\n\n// 3) Safety: placeholders in the document that have no value\nconst missing = [...seen].filter(k => !(k in slots));\n\nreturn [{ json: {\n  documentId,\n  deleted: toDelete.length,\n  replacements: requests.length - toDelete.length,\n  missing,\n  body: { requests }\n} }];"
+      },
+      "id": "b46907ec-6ae2-4c36-8f64-f7f1298c93d9",
+      "name": "Build fill requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "0c528c57-1b43-4a49-90c0-876839e82dc2",
+      "name": "Fill CV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "VEEzybRKTCZujqkI",
+          "name": "google-docs-dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Copy CV template').first().json.id }}"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "id": "3d7b8ed8-12c4-4ec4-bfc4-4c117fc8f685",
+      "name": "Export CV PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "KEUJ8Q15od9rZvKH",
+          "name": "google-drive-dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const it = $input.first();\nconst bin = it.binary || {};\nconst key = Object.keys(bin)[0];\nif (!key) return [{ json: { ok: false, error: 'CV file missing' } }];\nconst buf = await this.helpers.getBinaryDataBuffer(0, key);\nconst company = String($('Make CV input').first().json.offer.company || 'Company').replace(/[^\\p{L}\\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'Company';\nconst kind = 'CV';\nreturn [{ json: { ok: true, filename: kind + '_' + company + '.pdf', b64: buf.toString('base64') } }];\n"
+      },
+      "id": "ee3f7c9e-984f-4e0a-8cef-4470e28cc8d5",
+      "name": "Pack CV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Make CV input": {
+      "main": [
+        [
+          {
+            "node": "Copy CV template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy CV template": {
+      "main": [
+        [
+          {
+            "node": "Read copy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read copy": {
+      "main": [
+        [
+          {
+            "node": "Build fill requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build fill requests": {
+      "main": [
+        [
+          {
+            "node": "Fill CV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill CV": {
+      "main": [
+        [
+          {
+            "node": "Export CV PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export CV PDF": {
+      "main": [
+        [
+          {
+            "node": "Pack CV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "526e0359-76c0-4cf4-8624-bb214ae7039d",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "5e0a37b2ae64047ebb2fdd2088004878021f54341e0c71b65450a9617deadce9"
+  },
+  "nodeGroups": [],
+  "id": "dyZ6gG3XNjkh8u1j",
+  "tags": []
+}

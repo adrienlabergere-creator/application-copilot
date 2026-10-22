@@ -1,0 +1,98 @@
+{
+  "name": "Copilot - Error handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b5e7c938-05fb-43b5-9ad7-e6e4359ab8f4",
+      "name": "On error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst j = $input.first().json || {};\nconst ex = j.execution || {};\nconst wf = j.workflow || {};\nconst err = ex.error || {};\nconst where = ex.lastNodeExecuted || (err.node && err.node.name) || 'unknown step';\nconst msg = String(err.message || 'unknown error').slice(0, 300);\nconst url = ex.url || '';\nconst text = '<b>Application Copilot hit an error</b>'\n  + '\\nWorkflow: ' + esc(wf.name || 'unknown workflow')\n  + '\\nStep: ' + esc(where)\n  + '\\nProblem: ' + esc(msg)\n  + '\\nExecution: ' + esc(ex.id || '?')\n  + (url ? '\\n' + esc(url) : '')\n  + '\\nSend the offer again in a minute. If it keeps failing, open the execution above for details.';\nreturn [{ json: { text } }];\n"
+      },
+      "id": "e9ae0ef0-73e8-4c9b-af65-b13b9498d101",
+      "name": "Build error alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "8800249195",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "6635d65f-ceb2-4288-8dd5-f7b99a1bab4e",
+      "name": "Send error alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        0
+      ],
+      "webhookId": "382ba151-16bc-47b3-9272-295e6282415b",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On error": {
+      "main": [
+        [
+          {
+            "node": "Build error alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build error alert": {
+      "main": [
+        [
+          {
+            "node": "Send error alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "3b4f0792-a542-46d6-83d3-c4211cbc4388",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "5e0a37b2ae64047ebb2fdd2088004878021f54341e0c71b65450a9617deadce9"
+  },
+  "nodeGroups": [],
+  "id": "0gmg6sddYo6rZr7m",
+  "tags": []
+}

@@ -1,0 +1,2661 @@
+{
+  "name": "Copilot - Entry",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot-api",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "1999adb7-5389-4e93-a50a-213e736c18e2",
+      "name": "API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        1408
+      ],
+      "webhookId": "b1a255bf-f3c5-4057-bf68-5033cf737b88"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "e87e39ad-d5ca-4a81-9b92-99b17d1dbb4f",
+      "name": "Telegram message",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        1168
+      ],
+      "webhookId": "0cb73e49-021f-437f-afef-af701fdb5228",
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d2b3a2b0-7bfb-4326-91ca-1c17375b47ca",
+              "leftValue": "={{ $json.message.chat.id }}",
+              "operator": {
+                "operation": "equals",
+                "type": "number"
+              },
+              "rightValue": 8800249195
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "1dafcfd9-7f57-4c7d-8386-2b73b6f3b589",
+      "name": "Is it Adrien?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        1168
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "aee33d99-5d2e-4f3d-a90f-c134ba9c50ab",
+      "name": "Ignore stranger",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        448,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $input.first();\nconst j = src.json || {};\nconst deny = [{ json: { action: 'denied', channel: 'web' } }];\nconst AS = ['prepared', 'applied', 'interview', 'offer', 'rejected'];\n\n// ---- Telegram message: same shape as the web request, so everything downstream is shared\nif (j.message && j.message.chat) {\n  const m = j.message;\n  const text = String(m.text || '').trim();\n  const base = { channel: 'telegram', want: ['cv', 'letter', 'prep'], app_id: 0, status: '' };\n  const msg = { chat: { id: m.chat.id }, text };\n  let action = 'usage';\n  if (m.document) { action = 'upload_cv_tg'; msg.document = m.document; }\n  else if (/^\\/cv(\\s|$)/i.test(text)) { action = 'upload_cv'; msg.text = text.replace(/^\\/cv\\s*/i, ''); }\n  else if (text.toLowerCase() === '/reset') action = 'reset';\n  else if (text.toLowerCase() === '/applications') action = 'applications';\n  else if (/^https?:\\/\\//i.test(text) || text.length > 300) action = 'generate';\n  return [{ json: Object.assign(base, { action, message: msg }) }];\n}\n\n// ---- Web request (webhook): access code, visitor token, action whitelist\nconst b = j.body || {};\nif (String(b.access || '') !== 'copilot-059b8a56') return deny;\nconst tok = String(b.token || '');\nif (!/^[a-z0-9]{16,40}$/.test(tok)) return deny;\nconst action = String(b.action || '');\nconst ALLOWED = ['generate', 'upload_cv', 'reset', 'applications', 'set_status', 'profile', 'clear_applications'];\nif (!ALLOWED.includes(action)) return deny;\nconst text = action === 'upload_cv' ? String(b.cv_text || '') : String(b.offer || '').trim();\nconst status = String(b.status || '').toLowerCase();\nif (action === 'set_status' && (!/^\\d+$/.test(String(b.app_id || '')) || !AS.includes(status))) return deny;\n// what to produce: any of cv / letter / prep (all three if the field is absent)\nlet want = ['cv', 'letter', 'prep'];\nif (b.want !== undefined) {\n  const raw = Array.isArray(b.want) ? b.want : String(b.want).split(',');\n  want = [...new Set(raw.map(x => String(x).trim().toLowerCase()).filter(x => ['cv', 'letter', 'prep'].includes(x)))];\n  if (action === 'generate' && want.length === 0) return deny;\n}\nconst out = { json: { channel: 'web', action, message: { chat: { id: 'web-' + tok }, text }, want, app_id: Number(b.app_id || 0), status } };\nif (src.binary) out.binary = src.binary;\nreturn [out];\n"
+      },
+      "id": "5c751ce5-45d5-415d-8bac-0f04d899f421",
+      "name": "Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r0",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "generate"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "generate"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "upload_cv"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "upload_cv"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "upload_cv_tg"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "upload_cv_tg"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r3",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "demo"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r4",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "reset"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "reset"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r5",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "applications"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "applications"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r6",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "set_status"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "set_status"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r7",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "profile"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "profile"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r8",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "clear_applications"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "clear_applications"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r9",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "usage"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "usage"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "denied"
+        }
+      },
+      "id": "42e632a9-bbf2-4ae9-822b-1ca3c5e86937",
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i46163386",
+              "leftValue": "={{ $('Request').first().json.channel === 'web' }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "ec136142-8867-4635-a4dd-720ec6c37cb6",
+      "name": "Web channel?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4480,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "668c9ca3-96c2-479b-8615-5c5d39517698",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        4704,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst chat = $('Request').first().json.message.chat.id;\nconst out = [];\nconst text = t => out.push({ json: { kind: 'text', text: String(t) } });\nconst file = async (f, caption) => {\n  const data = await this.helpers.prepareBinaryData(Buffer.from(f.b64, 'base64'), f.filename, 'application/pdf');\n  out.push({ json: { kind: 'file', caption }, binary: { data } });\n};\nif (r.ok === false) text(r.error || 'Something went wrong. Please try again.');\nelse if (r.offer) {\n  const o = r.offer;\n  text('Prepared for ' + o.company + ' - ' + o.job_title + '.' + ((r.gaps || []).length ? '\\n\\nNot in your CV, so not claimed:\\n- ' + r.gaps.join('\\n- ') : ''));\n  if (r.cv) await file(r.cv, 'CV tailored for ' + o.company + ' - ' + o.job_title);\n  if (r.cv_error) text(r.cv_error);\n  if (r.letter) await file(r.letter, 'Cover letter for ' + o.company + ' - ' + o.job_title);\n  if (r.letter_error) text(r.letter_error);\n}\nelse if (Array.isArray(r.applications)) {\n  text(r.applications.length ? r.applications.map(a => '#' + a.id + ' ' + a.company + ' - ' + a.job_title + ' [' + a.status + ']' + (a.deadline ? ' (deadline ' + a.deadline + ')' : '')).join('\\n') : 'No application yet.');\n}\nelse if (r.summary) text(r.summary);\nelse text('Done.');\nreturn out.length ? out : [{ json: { kind: 'text', text: 'Done.' } }];\n"
+      },
+      "id": "67117f62-08f1-46b2-8b39-5d75356e217f",
+      "name": "To Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4704,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i67144842",
+              "leftValue": "={{ $json.kind === 'file' }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "c9939548-472c-4aa9-a4f4-20c54c5ff17e",
+      "name": "Is file?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4928,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $('Request').first().json.message.chat.id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ $json.caption }}"
+        }
+      },
+      "id": "1a4348d7-8e83-4789-bf97-fc3ab8ecfbd3",
+      "name": "Send file",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        5152,
+        832
+      ],
+      "webhookId": "bdd63042-7cfd-4efd-beca-d7b2ab6ebe86",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Request').first().json.message.chat.id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "975364d6-17b0-48b0-944c-febbb11c6b8b",
+      "name": "Send text",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        5152,
+        1024
+      ],
+      "webhookId": "c8d31331-cdbe-4578-8b99-00c8eb7dd6a6",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e51aee56-5763-4698-87e1-2c0efb08d8fd",
+              "name": "ok",
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "id": "3a77c28b-fd3e-42c0-9090-6f2ebf933184",
+              "name": "error",
+              "type": "string",
+              "value": "Access code invalid or request not understood."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3d08cacb-93a8-4841-a8e2-7bcd20eecf5f",
+      "name": "Denied",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4256,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "ok",
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "id": "a1",
+              "name": "summary",
+              "type": "string",
+              "value": "Send me a job offer link, paste the offer text, or attach a PDF. /cv + text updates your profile, /applications lists your applications, /reset clears your profile."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3342fe8b-cda1-4046-8660-acf085a15191",
+      "name": "Usage reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4256,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "Cyi8IcMbPIVV6drA"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "text",
+              "id": "text",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "text": "={{ $json.message.text }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c658f96f-b1f6-48c0-b049-b32d3c2b7254",
+      "name": "Read offer",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        896,
+        224
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i89308134",
+              "leftValue": "={{ $json.ok === true }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "67e40c9c-0aa4-4bfd-9cbf-98b11ca6ba33",
+      "name": "Offer read?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "ok",
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "id": "a1",
+              "name": "error",
+              "type": "string",
+              "value": "={{ $json.error || 'I could not read that offer. Try pasting its text.' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bb15c555-a7ac-4d8d-a655-7b7dad2e2bd1",
+      "name": "Offer error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4256,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "aauZo0iQSk7xhJLM"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "chat_id",
+              "id": "chat_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer",
+              "id": "offer",
+              "required": false,
+              "type": "object"
+            }
+          ],
+          "value": {
+            "chat_id": "={{ String($('Request').first().json.message.chat.id) }}",
+            "offer": "={{ $('Read offer').first().json.offer }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "0d41557a-db7c-49f9-86cf-2acb4fc87c15",
+      "name": "Select content",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        1344,
+        176
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i15738151",
+              "leftValue": "={{ $json.ok === true && $json.selection_ok === true }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "f2ff2b0e-ec69-47da-9ade-caf830604ee1",
+      "name": "Content ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $json;\nreturn [{ json: { ok: false, error: s.error || ('I could not build a reliable selection for this offer: ' + (s.problems || []).join(' | ') + '. Try again.') } }];"
+      },
+      "id": "9db09005-2ab7-4a8b-87a1-a284eefec583",
+      "name": "Content error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "adqvnnAyeLN5M9VX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "chat_id",
+              "id": "chat_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "company",
+              "id": "company",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "job_title",
+              "id": "job_title",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "location",
+              "id": "location",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "deadline",
+              "id": "deadline",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer_url",
+              "id": "offer_url",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer_key",
+              "id": "offer_key",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "gaps",
+              "id": "gaps",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "status",
+              "id": "status",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "reminded",
+              "id": "reminded",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "prepared_on",
+              "id": "prepared_on",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "chat_id": "={{ String($('Request').first().json.message.chat.id) }}",
+            "company": "={{ $('Read offer').first().json.offer.company }}",
+            "deadline": "={{ $('Read offer').first().json.offer.deadline || '' }}",
+            "gaps": "={{ ($('Select content').first().json.gaps || []).join(' | ') }}",
+            "job_title": "={{ $('Read offer').first().json.offer.job_title }}",
+            "location": "={{ $('Read offer').first().json.offer.location }}",
+            "offer_key": "={{ $('Read offer').first().json.offer.offer_key }}",
+            "offer_url": "={{ $('Read offer').first().json.offer.offer_url || '' }}",
+            "prepared_on": "={{ $now.setZone('Europe/Paris').toFormat('yyyy-MM-dd') }}",
+            "reminded": false,
+            "status": "prepared"
+          }
+        },
+        "options": {}
+      },
+      "id": "34f2eb2d-67c8-42b6-9679-4cd3783656a0",
+      "name": "Save application",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i38395495",
+              "leftValue": "={{ $('Request').first().json.channel === 'telegram' }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "bffcb8db-5f81-4a80-a834-e1b12d048e09",
+      "name": "Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2016,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "={{ $('Request').first().json.message.chat.id }}",
+        "message": "=Offer read: {{ $('Read offer').first().json.offer.company }} - {{ $('Read offer').first().json.offer.job_title }}.\nGenerate the tailored CV?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Yes, CV",
+            "disapproveLabel": "No"
+          }
+        },
+        "chatApproval": true,
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cd1cc99a-4cd8-49c3-b5d3-08a227027ea5",
+      "name": "Ask CV",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        64
+      ],
+      "webhookId": "ca4663e8-1696-4c41-b863-dc986c2be349",
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "={{ $('Request').first().json.message.chat.id }}",
+        "message": "Generate the cover letter?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Yes, letter",
+            "disapproveLabel": "No"
+          }
+        },
+        "chatApproval": true,
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b64667c8-8c50-45f8-b6f0-8e7f9c0ce45f",
+      "name": "Ask letter",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2464,
+        64
+      ],
+      "webhookId": "962e40a0-663b-439f-ad4c-29b959299be8",
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Request').first().json;\nlet want = Array.isArray(r.want) ? r.want : [];\nif (r.channel === 'telegram') {\n  want = ['prep'];\n  const yes = n => { try { return $(n).first().json.data.approved === true; } catch (e) { return false; } };\n  if (yes('Ask CV')) want.push('cv');\n  if (yes('Ask letter')) want.push('letter');\n}\nreturn [{ json: { want } }];\n"
+      },
+      "id": "ac8cb62f-2fd5-47b4-9015-8c0fa75d4815",
+      "name": "Want",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i79976091",
+              "leftValue": "={{ $json.want.includes('cv') }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "dcbaa4b2-6bd3-474d-b102-5720de31e5e0",
+      "name": "CV wanted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "dyZ6gG3XNjkh8u1j"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer",
+              "id": "offer",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "slots",
+              "id": "slots",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "profile",
+              "id": "profile",
+              "required": false,
+              "type": "object"
+            }
+          ],
+          "value": {
+            "offer": "={{ $('Read offer').first().json.offer }}",
+            "profile": "={{ $('Select content').first().json.profile }}",
+            "slots": "={{ $('Select content').first().json.slots }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "fdfa3e4b-2e46-4059-8485-3343aba4be8a",
+      "name": "Make CV",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        3136,
+        64
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i68456371",
+              "leftValue": "={{ $('Want').first().json.want.includes('letter') }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "dac65da3-c34a-494a-98d8-608226a60455",
+      "name": "Letter wanted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3360,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "6FCEM6euAeeN3NW8"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer",
+              "id": "offer",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "ids",
+              "id": "ids",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "gaps",
+              "id": "gaps",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "master",
+              "id": "master",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "profile",
+              "id": "profile",
+              "required": false,
+              "type": "object"
+            }
+          ],
+          "value": {
+            "gaps": "={{ $('Select content').first().json.gaps }}",
+            "ids": "={{ $('Select content').first().json.ids }}",
+            "master": "={{ $('Select content').first().json.master }}",
+            "offer": "={{ $('Read offer').first().json.offer }}",
+            "profile": "={{ $('Select content').first().json.profile }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "51e98884-b31a-472a-a57e-c96badb3ee27",
+      "name": "Make cover letter",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        3584,
+        64
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "i43507824",
+              "leftValue": "={{ $('Want').first().json.want.includes('prep') }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "814798bc-a3f4-41c0-b204-546bbcabd10f",
+      "name": "Prep wanted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3808,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "hQtBZiGp5XkcfDYj"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "chat_id",
+              "id": "chat_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "offer",
+              "id": "offer",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "master",
+              "id": "master",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "gaps",
+              "id": "gaps",
+              "required": false,
+              "type": "array"
+            }
+          ],
+          "value": {
+            "chat_id": "={{ String($('Request').first().json.message.chat.id) }}",
+            "gaps": "={{ $('Select content').first().json.gaps }}",
+            "master": "={{ $('Select content').first().json.master }}",
+            "offer": "={{ $('Read offer').first().json.offer }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "08ed330c-0fab-4f61-9409-f56eb1d086ee",
+      "name": "Run interview prep",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        4032,
+        64
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const o = $('Read offer').first().json.offer;\nconst sel = $('Select content').first().json;\nconst want = $('Want').first().json.want;\nconst grab = n => { try { return $(n).first().json; } catch (e) { return null; } };\nconst asFile = x => (x && x.ok === true && x.b64) ? { filename: x.filename, b64: x.b64 } : null;\nconst cvRes = want.includes('cv') ? grab('Make CV') : null;\nconst letRes = want.includes('letter') ? grab('Make cover letter') : null;\nconst prepRes = want.includes('prep') ? grab('Run interview prep') : null;\nconst web = $('Request').first().json.channel === 'web';\nreturn [{ json: {\n  ok: true,\n  offer: { company: o.company, job_title: o.job_title, location: o.location || '', deadline: o.deadline || '', offer_url: o.offer_url || '' },\n  gaps: Array.isArray(sel.gaps) ? sel.gaps : [],\n  cv: asFile(cvRes),\n  cv_error: want.includes('cv') && !asFile(cvRes) ? 'The CV could not be generated. Please try again.' : '',\n  letter: asFile(letRes),\n  letter_error: letRes && !asFile(letRes) ? String(letRes.letter_error || 'The cover letter could not be generated. Please try again.') : '',\n  prep: web && prepRes ? String(prepRes.text || '') : ''\n} }];\n"
+      },
+      "id": "97a3b01c-5b43-4814-82f2-bb6ffdf8b189",
+      "name": "Final reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "e11637fb-15e9-4339-9c12-c91e8e729cc2",
+              "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "5cd46b77-c3bc-4119-80a7-1c6ff6d4a5fb",
+      "name": "File uploaded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.document.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "7332fcbd-cccd-4943-b9d8-3098174b0902",
+      "name": "Get CV file",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        976
+      ],
+      "webhookId": "26535486-018e-4e35-ab33-266aec77dae2",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "telegramApi": {
+          "id": "pgHH11gHSHkeQSms",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "c2c72cf2-9561-4abd-884e-3aba3df4ee01",
+      "name": "Extract CV text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1a4b7c0-2d93-4f18-9a6e-5b0c8d7f1e22",
+              "name": "cv_text",
+              "type": "string",
+              "value": "={{ $json.message.text.replace(/^\\/cv\\s*/i, '') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3380b827-b1ab-4ba5-8f57-0df7d6e3fd84",
+      "name": "CV text from message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1120,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\nconst text = String(j.text !== undefined ? j.text : (j.cv_text || '')).replace(/\\u0000/g, '').trim().slice(0, 30000);\nreturn [{ json: { cv_text: text, chars: text.length } }];"
+      },
+      "id": "eac0035b-ad85-43bb-a1bc-345136c12a91",
+      "name": "Prepare CV text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d5f9b0e3-4c68-4f72-b1a5-83e7c29f6d44",
+              "leftValue": "={{ $json.chars }}",
+              "operator": {
+                "operation": "gte",
+                "type": "number"
+              },
+              "rightValue": 200
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "a8094188-932d-418e-bf84-86169d512109",
+      "name": "CV text usable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4032,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dc93677a-9206-4bd3-8744-0b58bc193c94",
+              "name": "ok",
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "id": "7bf57995-f6f2-4b10-8200-bed9c8f318c0",
+              "name": "error",
+              "type": "string",
+              "value": "I could not read enough text from that CV (it may be a scanned image). Paste its text instead."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "596b274e-c51a-45f0-9106-90a652a67c13",
+      "name": "CV too short",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4256,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "h9V4FmHL0OnrZGye"
+        },
+        "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "chat_id",
+              "id": "chat_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "cv_text",
+              "id": "cv_text",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "chat_id": "={{ String($('Request').first().json.message.chat.id) }}",
+            "cv_text": "={{ $json.cv_text }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "0b669987-4fa4-4a51-a14d-e7416080c88c",
+      "name": "Build master",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        4256,
+        736
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "T91g0crC8QgZzIO4"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($('Request').first().json.message.chat.id) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b778a206-3039-4602-94fb-ef0e1ae13599",
+      "name": "Delete master",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3136,
+        1232
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: true, summary: 'Profile cleared.' } }];"
+      },
+      "id": "23c15e9c-d450-4240-a58d-d696ff4bb344",
+      "name": "Reset done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "adqvnnAyeLN5M9VX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($('Request').first().json.message.chat.id) }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "3cfddcba-6aa7-4a92-8791-2b773d138f54",
+      "name": "Read applications list",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        1616
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r.id !== undefined && r.company);\nrows.sort((a, b) => Number(b.id) - Number(a.id));\nreturn [{ json: { ok: true, applications: rows.slice(0, 50).map(r => ({\n  id: r.id, company: r.company, job_title: r.job_title, location: r.location || '', deadline: r.deadline || '',\n  status: r.status || 'prepared', offer_url: r.offer_url || '', prepared_on: r.prepared_on || ''\n})) } }];\n"
+      },
+      "id": "3804d7ee-2e64-43c1-ab19-ddf23180b223",
+      "name": "Applications reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "adqvnnAyeLN5M9VX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ $json.app_id }}"
+            },
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($json.message.chat.id) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "status",
+              "id": "status",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "fa0498b6-7520-4f86-bcc9-cbbbce603392",
+      "name": "Update status",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        1808
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const ok = $input.all().some(i => i.json && i.json.id !== undefined);\nreturn [{ json: ok ? { ok: true } : { ok: false, error: 'Application not found.' } }];"
+      },
+      "id": "ec35db78-48c0-41ef-8407-80d45d96f101",
+      "name": "Status reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "T91g0crC8QgZzIO4"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($('Request').first().json.message.chat.id) }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "57da6dad-a4f0-4cde-8333-9643e3b370e7",
+      "name": "Read profile",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        2000
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r.item_id);\nconst profile = {};\nfor (const r of rows) if (r.section === 'profile') profile[String(r.item_id).replace(/^PR_/, '')] = r.text || '';\nconst items = rows.filter(r => r.section !== 'profile').map(r => ({\n  id: r.item_id, section: r.section, parent: r.parent || '', text: r.text || '', dates: r.dates || '', org: r.org || '', role: r.role || ''\n}));\nconst counts = {};\nfor (const it of items) counts[it.section] = (counts[it.section] || 0) + 1;\nreturn [{ json: { ok: true, has_profile: items.length > 0, demo: profile.demo === '1', name: profile.name || '', counts, items } }];\n"
+      },
+      "id": "048f68f1-1e13-4b72-9f89-b07efe9781e5",
+      "name": "Profile reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "adqvnnAyeLN5M9VX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($('Request').first().json.message.chat.id) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2fc0ba38-126d-409c-939e-edcf8537e535",
+      "name": "Delete applications",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        2192
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: true } }];"
+      },
+      "id": "246f2132-6d46-40c3-84d0-15c29d4190f1",
+      "name": "Applications cleared",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        2192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "adqvnnAyeLN5M9VX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ String($('Request').first().json.message.chat.id) }}"
+            },
+            {
+              "keyName": "offer_key",
+              "keyValue": "={{ $('Read offer').first().json.offer.offer_key }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "6bcedb19-1ef9-4d95-b0d7-d270b349a185",
+      "name": "Find existing",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1232,
+        432
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "dup1",
+              "leftValue": "={{ $json.id !== undefined && $json.company !== undefined }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "id": "ce71b88d-b57b-4939-acd0-5f071f6ac621",
+      "name": "Already prepared?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1456,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d0",
+              "name": "ok",
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "id": "d1",
+              "name": "error",
+              "type": "string",
+              "value": "={{ 'Already prepared on ' + ($json.prepared_on || 'an earlier day') + ': ' + $json.company + ' - ' + $json.job_title + ' (#' + $json.id + ', status: ' + ($json.status || 'prepared') + '). Nothing new was created - see /applications.' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "66299d78-38ac-4965-9e27-471f26c177f0",
+      "name": "Duplicate reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4256,
+        160
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "efd351c6-8f8b-4833-84e3-3538206079de",
+      "name": "Manual test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same shape as what the website POSTs to the webhook (everything under `body`).\n// Run with 'Execute workflow' to test the whole pipeline without the site or Telegram.\nconst offer = [\n  'Quantitative Analyst Intern (6 months) - Example Capital, Paris.',\n  'About the role: you will support the systematic trading desk with research on equity and rates signals.',\n  'Responsibilities: build and backtest signals in Python; clean and analyse large market datasets; write weekly research notes; present results to portfolio managers.',\n  'Requirements: enrolled in an engineering, mathematics or finance degree; strong Python and SQL; interest in financial markets and statistics; fluent English.',\n  'Start date: February 2027. Location: Paris. Application deadline: 30 November 2026.'\n].join('\\n');\nreturn [{ json: { body: { token: '9adaf039c4fd48dc4a587f99', access: 'copilot-059b8a56', action: 'generate', offer, want: 'cv,letter,prep' } } }];\n"
+      },
+      "id": "7be0d757-cc4e-448b-bf86-f37fd86da35e",
+      "name": "Saved test payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1600
+      ],
+      "notes": "Saved test payload kept next to the real webhook: same shape as the body the website sends. Edit the offer text to test another case."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram message": {
+      "main": [
+        [
+          {
+            "node": "Is it Adrien?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is it Adrien?": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore stranger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To Telegram": {
+      "main": [
+        [
+          {
+            "node": "Is file?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is file?": {
+      "main": [
+        [
+          {
+            "node": "Send file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "Read offer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "File uploaded?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get CV file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Delete master",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read applications list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete applications",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Usage reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Denied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Denied": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Usage reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read offer": {
+      "main": [
+        [
+          {
+            "node": "Offer read?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offer read?": {
+      "main": [
+        [
+          {
+            "node": "Find existing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Offer error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offer error": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select content": {
+      "main": [
+        [
+          {
+            "node": "Content ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content ready?": {
+      "main": [
+        [
+          {
+            "node": "Save application",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Content error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content error": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save application": {
+      "main": [
+        [
+          {
+            "node": "Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Ask CV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Want",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask CV": {
+      "main": [
+        [
+          {
+            "node": "Ask letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask letter": {
+      "main": [
+        [
+          {
+            "node": "Want",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Want": {
+      "main": [
+        [
+          {
+            "node": "CV wanted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV wanted?": {
+      "main": [
+        [
+          {
+            "node": "Make CV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Letter wanted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make CV": {
+      "main": [
+        [
+          {
+            "node": "Letter wanted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Letter wanted?": {
+      "main": [
+        [
+          {
+            "node": "Make cover letter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep wanted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make cover letter": {
+      "main": [
+        [
+          {
+            "node": "Prep wanted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep wanted?": {
+      "main": [
+        [
+          {
+            "node": "Run interview prep",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Final reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run interview prep": {
+      "main": [
+        [
+          {
+            "node": "Final reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File uploaded?": {
+      "main": [
+        [
+          {
+            "node": "Extract CV text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CV text from message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get CV file": {
+      "main": [
+        [
+          {
+            "node": "Extract CV text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CV text": {
+      "main": [
+        [
+          {
+            "node": "Prepare CV text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV text from message": {
+      "main": [
+        [
+          {
+            "node": "Prepare CV text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CV text": {
+      "main": [
+        [
+          {
+            "node": "CV text usable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV text usable?": {
+      "main": [
+        [
+          {
+            "node": "Build master",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CV too short",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build master": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV too short": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset done": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read applications list": {
+      "main": [
+        [
+          {
+            "node": "Applications reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Applications reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update status": {
+      "main": [
+        [
+          {
+            "node": "Status reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read profile": {
+      "main": [
+        [
+          {
+            "node": "Profile reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Profile reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete applications": {
+      "main": [
+        [
+          {
+            "node": "Applications cleared",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Applications cleared": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web channel?": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "To Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete master": {
+      "main": [
+        [
+          {
+            "node": "Reset done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find existing": {
+      "main": [
+        [
+          {
+            "node": "Already prepared?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already prepared?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate reply": {
+      "main": [
+        [
+          {
+            "node": "Web channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual test": {
+      "main": [
+        [
+          {
+            "node": "Saved test payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saved test payload": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "errorWorkflow": "0gmg6sddYo6rZr7m",
+    "timezone": "Europe/Paris"
+  },
+  "versionId": "d39febbb-c2b1-4eb2-8385-dbdd227cd0b4",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "5e0a37b2ae64047ebb2fdd2088004878021f54341e0c71b65450a9617deadce9"
+  },
+  "nodeGroups": [],
+  "id": "4tXRX70A2WUKqBAz",
+  "tags": []
+}
